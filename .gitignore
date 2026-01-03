@@ -1,52 +1,71 @@
-# Prerequisites
-*.d
+# =============================================================================
+# 編譯產生的檔案（應該 ignore）
+# =============================================================================
 
-# Compiled Object files
-*.slo
-*.lo
+# Build directories
+c_wrapper/build/
+Example/build/
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# CMake generated files (but keep CMakeLists.txt!)
+*_autogen.cmake
+*Config.cmake
+*Targets.cmake
+
+# Compiled object files
 *.o
 *.obj
+*.lo
+*.slo
 
-# Precompiled Headers
+# Precompiled headers
 *.gch
 *.pch
 
-# Linker files
-*.ilk
-
-# Debugger Files
-*.pdb
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# 但要包含 SDK 預編譯的動態庫
-!fubon-cpp-sdk/bindings/*.so
-!fubon-cpp-sdk/bindings/*.dylib
-!fubon-cpp-sdk/bindings/*.dll
-!fubon-cpp-sdk/bindings/*.lib
-
-# 也包含未來 c_wrapper 產生的動態庫
-!c_wrapper/build/*.so
-!c_wrapper/build/*.dylib
-!c_wrapper/build/*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
+# Static libraries
 *.a
-*.lib
+*.la
+*.lai
 
 # Executables
 *.exe
 *.out
 *.app
+test_sdk
 
-# debug information files
+# Debug files
 *.dwo
+*.pdb
+*.ilk
+
+# Log files
+log/
+*.log
+
+# =============================================================================
+# 系統檔案
+# =============================================================================
+
+.DS_Store
+.vscode/
+.idea/
+
+# =============================================================================
+# 例外：需要保留的預編譯 SDK 動態庫
+# =============================================================================
+
+# 先 ignore 所有動態庫
+*.so
+*.dylib
+*.dll
+
+# 但保留 fubon-cpp-sdk 的預編譯庫（必要！）
+!fubon-cpp-sdk/bindings/libfubon.so
+!fubon-cpp-sdk/bindings/libfubon.dylib
+!fubon-cpp-sdk/bindings/fubon.dll
+!fubon-cpp-sdk/bindings/fubon.lib
