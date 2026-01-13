@@ -284,3 +284,124 @@ void fubon_free_bank_remain_result(FubonBankRemainResult* result) {
     // Free result structure
     delete result;
 }
+
+// ============================================================================
+// Accounting Functions: inventories
+// ============================================================================
+
+FubonInventoryResult* fubon_inventories(FubonSDK sdk, const FubonAccount* account) {
+    auto* result = new FubonInventoryResult();
+
+    if (!sdk || !account) {
+        result->is_success = false;
+        result->error_message = strdup_from_cpp("Invalid parameters: SDK and account are required");
+        result->data = nullptr;
+        return result;
+    }
+
+    try {
+        auto* cpp_sdk = static_cast<fubon::FubonSDK*>(sdk);
+
+        // Convert C account to C++ account
+        fubon::Account cpp_account;
+        cpp_account.name = account->name ? std::string(account->name) : "";
+        cpp_account.branch_no = account->branch_no ? std::string(account->branch_no) : "";
+        cpp_account.account = account->account ? std::string(account->account) : "";
+        cpp_account.account_type = account->account_type ? std::string(account->account_type) : "";
+
+        // Call C++ SDK inventories
+        fubon::InventoryResponse response = cpp_sdk->accounting->inventories(cpp_account);
+
+        result->is_success = response.is_success;
+
+        // Handle error message
+        if (response.message.has_value()) {
+            result->error_message = strdup_from_cpp(response.message.value());
+        } else {
+            result->error_message = nullptr;
+        }
+
+        // Handle inventory data
+        if (response.is_success && response.data.has_value()) {
+            auto& inventories_vec = response.data.value();
+
+            // Allocate inventory array
+            auto* inventory_array = new FubonInventoryArray();
+            inventory_array->count = static_cast<int32_t>(inventories_vec.size());
+            inventory_array->items = (FubonInventory*)malloc(sizeof(FubonInventory) * inventories_vec.size());
+
+            // Convert each inventory
+            for (size_t i = 0; i < inventories_vec.size(); i++) {
+                auto& inv = inventories_vec[i];
+
+                inventory_array->items[i].date = strdup_from_cpp(inv.date);
+                inventory_array->items[i].account = strdup_from_cpp(inv.account);
+                inventory_array->items[i].branch_no = strdup_from_cpp(inv.branch_no);
+                inventory_array->items[i].stock_no = strdup_from_cpp(inv.stock_no);
+
+                // Convert OrderType enum
+                inventory_array->items[i].order_type = static_cast<FubonOrderType>(static_cast<int32_t>(inv.order_type));
+
+                // Copy quantities and values
+                inventory_array->items[i].lastday_qty = inv.lastday_qty;
+                inventory_array->items[i].buy_qty = inv.buy_qty;
+                inventory_array->items[i].buy_filled_qty = inv.buy_filled_qty;
+                inventory_array->items[i].buy_value = inv.buy_value;
+                inventory_array->items[i].today_qty = inv.today_qty;
+                inventory_array->items[i].tradable_qty = inv.tradable_qty;
+                inventory_array->items[i].sell_qty = inv.sell_qty;
+                inventory_array->items[i].sell_filled_qty = inv.sell_filled_qty;
+                inventory_array->items[i].sell_value = inv.sell_value;
+
+                // Copy odd lot data
+                inventory_array->items[i].odd.lastday_qty = inv.odd.lastday_qty;
+                inventory_array->items[i].odd.buy_qty = inv.odd.buy_qty;
+                inventory_array->items[i].odd.buy_filled_qty = inv.odd.buy_filled_qty;
+                inventory_array->items[i].odd.buy_value = inv.odd.buy_value;
+                inventory_array->items[i].odd.today_qty = inv.odd.today_qty;
+                inventory_array->items[i].odd.tradable_qty = inv.odd.tradable_qty;
+                inventory_array->items[i].odd.sell_qty = inv.odd.sell_qty;
+                inventory_array->items[i].odd.sell_filled_qty = inv.odd.sell_filled_qty;
+                inventory_array->items[i].odd.sell_value = inv.odd.sell_value;
+            }
+
+            result->data = inventory_array;
+        } else {
+            result->data = nullptr;
+        }
+
+    } catch (const std::exception& e) {
+        result->is_success = false;
+        result->error_message = strdup_from_cpp(std::string("Exception: ") + e.what());
+        result->data = nullptr;
+    }
+
+    return result;
+}
+
+void fubon_free_inventory_result(FubonInventoryResult* result) {
+    if (!result) return;
+
+    // Free error message
+    if (result->error_message) {
+        free(result->error_message);
+    }
+
+    // Free inventory data
+    if (result->data) {
+        if (result->data->items) {
+            for (int32_t i = 0; i < result->data->count; i++) {
+                free(result->data->items[i].date);
+                free(result->data->items[i].account);
+                free(result->data->items[i].branch_no);
+                free(result->data->items[i].stock_no);
+                // Note: odd struct is embedded, no need to free
+            }
+            free(result->data->items);
+        }
+        delete result->data;
+    }
+
+    // Free result structure
+    delete result;
+}

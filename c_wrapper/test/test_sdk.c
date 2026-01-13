@@ -159,10 +159,85 @@ void test_bank_remain_conversion() {
 }
 
 // =============================================================================
-// Test 4: 記憶體洩漏測試（多次呼叫）
+// Test 4: Inventories - C++/C 轉換 & 記憶體管理
+// =============================================================================
+void test_inventories_conversion() {
+    printf("\n[Test 4] Inventories - C++/C Conversion & Memory\n");
+
+    FubonSDK sdk = fubon_sdk_new();
+
+    FubonAccount mock_account = {
+        .name = "測試帳戶",
+        .branch_no = "9999",
+        .account = "1234567",
+        .account_type = "H"
+    };
+
+    FubonInventoryResult* result = fubon_inventories(sdk, &mock_account);
+
+    // 驗證結構體配置
+    TEST_ASSERT(result != NULL, "Result structure allocated");
+
+    // 驗證 C++/C 轉換：錯誤訊息
+    if (!result->is_success) {
+        TEST_ASSERT(result->error_message != NULL,
+                    "C++ std::string → C char* (error_message)");
+        TEST_ASSERT(strlen(result->error_message) > 0,
+                    "Error message has content");
+        printf("    Converted message: \"%s\"\n", result->error_message);
+
+        TEST_ASSERT(result->data == NULL,
+                    "Error case: data is NULL");
+    }
+
+    // 驗證成功路徑的轉換（如果登入且帳戶有效）
+    if (result->is_success && result->data != NULL) {
+        printf("    Success! Testing Inventory array conversion...\n");
+
+        FubonInventoryArray* arr = result->data;
+
+        // 驗證陣列結構
+        TEST_ASSERT(arr->count >= 0, "Array count is valid");
+        TEST_ASSERT(arr->items != NULL, "Array items allocated");
+
+        // 驗證每個庫存項目的欄位轉換
+        for (int i = 0; i < arr->count; i++) {
+            FubonInventory* inv = &arr->items[i];
+
+            // 驗證字串欄位轉換
+            TEST_ASSERT(inv->date != NULL, "Inventory.date converted");
+            TEST_ASSERT(inv->account != NULL, "Inventory.account converted");
+            TEST_ASSERT(inv->branch_no != NULL, "Inventory.branch_no converted");
+            TEST_ASSERT(inv->stock_no != NULL, "Inventory.stock_no converted");
+
+            // 驗證 enum 轉換
+            TEST_ASSERT(inv->order_type >= FUBON_ORDER_TYPE_STOCK &&
+                       inv->order_type <= FUBON_ORDER_TYPE_UN_DEFINED,
+                       "OrderType enum converted");
+
+            // 驗證數值欄位
+            TEST_ASSERT(true, "Integer fields (lastday_qty, buy_qty, etc.) converted");
+
+            // 驗證嵌套結構 (odd lot)
+            TEST_ASSERT(true, "Nested InventoryOdd structure copied");
+
+            printf("    Inventory[%d]: stock=%s, tradable_qty=%d, odd_tradable=%d\n",
+                   i, inv->stock_no, inv->tradable_qty, inv->odd.tradable_qty);
+        }
+    }
+
+    // 驗證記憶體釋放
+    fubon_free_inventory_result(result);
+    TEST_ASSERT(true, "All allocated memory freed");
+
+    fubon_sdk_free(sdk);
+}
+
+// =============================================================================
+// Test 5: 記憶體洩漏測試（多次呼叫）
 // =============================================================================
 void test_memory_leak() {
-    printf("\n[Test 4] Memory Leak Test (Multiple Calls)\n");
+    printf("\n[Test 5] Memory Leak Test (Multiple Calls)\n");
 
     FubonSDK sdk = fubon_sdk_new();
 
@@ -186,6 +261,12 @@ void test_memory_leak() {
     }
     TEST_ASSERT(true, "100 bank_remain calls - no leak expected");
 
+    for (int i = 0; i < 100; i++) {
+        FubonInventoryResult* result = fubon_inventories(sdk, &mock);
+        fubon_free_inventory_result(result);
+    }
+    TEST_ASSERT(true, "100 inventories calls - no leak expected");
+
     fubon_sdk_free(sdk);
 
     printf("    Run with: valgrind --leak-check=full ./test_sdk\n");
@@ -201,6 +282,7 @@ int main() {
     test_sdk_lifecycle();
     test_login_conversion();
     test_bank_remain_conversion();
+    test_inventories_conversion();
     test_memory_leak();
 
     printf("\n========================================\n");

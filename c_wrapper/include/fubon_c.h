@@ -55,6 +55,76 @@ typedef struct {
 } FubonBankRemainResult;
 
 // ============================================================================
+// Inventory Structures
+// ============================================================================
+
+/**
+ * Order type enumeration
+ */
+typedef enum {
+    FUBON_ORDER_TYPE_STOCK = 1,
+    FUBON_ORDER_TYPE_MARGIN = 2,
+    FUBON_ORDER_TYPE_SHORT = 3,
+    FUBON_ORDER_TYPE_SBL = 4,
+    FUBON_ORDER_TYPE_DAY_TRADE = 5,
+    FUBON_ORDER_TYPE_UN_SUPPORTED = 6,
+    FUBON_ORDER_TYPE_UN_DEFINED = 7
+} FubonOrderType;
+
+/**
+ * Odd lot inventory information
+ */
+typedef struct {
+    int32_t lastday_qty;
+    int32_t buy_qty;
+    int32_t buy_filled_qty;
+    int32_t buy_value;
+    int32_t today_qty;
+    int32_t tradable_qty;
+    int32_t sell_qty;
+    int32_t sell_filled_qty;
+    int32_t sell_value;
+} FubonInventoryOdd;
+
+/**
+ * Stock inventory information
+ */
+typedef struct {
+    char* date;
+    char* account;
+    char* branch_no;
+    char* stock_no;
+    FubonOrderType order_type;
+    int32_t lastday_qty;
+    int32_t buy_qty;
+    int32_t buy_filled_qty;
+    int32_t buy_value;
+    int32_t today_qty;
+    int32_t tradable_qty;
+    int32_t sell_qty;
+    int32_t sell_filled_qty;
+    int32_t sell_value;
+    FubonInventoryOdd odd;
+} FubonInventory;
+
+/**
+ * Array of inventories
+ */
+typedef struct {
+    FubonInventory* items;
+    int32_t count;
+} FubonInventoryArray;
+
+/**
+ * Inventory query result
+ */
+typedef struct {
+    bool is_success;
+    char* error_message;
+    FubonInventoryArray* data;
+} FubonInventoryResult;
+
+// ============================================================================
 // SDK Lifecycle Functions
 // ============================================================================
 
@@ -136,6 +206,20 @@ FubonBankRemainResult* fubon_bank_remain(FubonSDK sdk, const FubonAccount* accou
  * @param result Bank remain result to free
  */
 void fubon_free_bank_remain_result(FubonBankRemainResult* result);
+
+/**
+ * Query stock inventories
+ * @param sdk SDK handle
+ * @param account Account to query
+ * @return Inventory result, must be freed with fubon_free_inventory_result()
+ */
+FubonInventoryResult* fubon_inventories(FubonSDK sdk, const FubonAccount* account);
+
+/**
+ * Free inventory result and all associated memory
+ * @param result Inventory result to free
+ */
+void fubon_free_inventory_result(FubonInventoryResult* result);
 
 #ifdef __cplusplus
 }
