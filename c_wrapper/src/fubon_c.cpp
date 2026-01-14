@@ -405,3 +405,169 @@ void fubon_free_inventory_result(FubonInventoryResult* result) {
     // Free result structure
     delete result;
 }
+
+// ============================================================================
+// Symbol Quote Implementation (Task 4 - query_symbol_quote)
+// ============================================================================
+
+// Helper function to convert FubonMarketType to C++ MarketType
+static fubon::MarketType convert_market_type(FubonMarketType mt) {
+    switch (mt) {
+        case FUBON_MARKET_TYPE_COMMON:
+            return fubon::MarketType::COMMON;
+        case FUBON_MARKET_TYPE_FIXING:
+            return fubon::MarketType::FIXING;
+        case FUBON_MARKET_TYPE_ODD:
+            return fubon::MarketType::ODD;
+        case FUBON_MARKET_TYPE_INTRADAY_ODD:
+            return fubon::MarketType::INTRADAY_ODD;
+        case FUBON_MARKET_TYPE_EMG:
+            return fubon::MarketType::EMG;
+        case FUBON_MARKET_TYPE_EMG_ODD:
+            return fubon::MarketType::EMG_ODD;
+        case FUBON_MARKET_TYPE_UN_SUPPORTED:
+            return fubon::MarketType::UN_SUPPORTED;
+        case FUBON_MARKET_TYPE_UN_DEFINED:
+        default:
+            return fubon::MarketType::UN_DEFINED;
+    }
+}
+
+// Helper function to convert C++ MarketType to FubonMarketType
+static FubonMarketType convert_to_c_market_type(fubon::MarketType mt) {
+    switch (mt) {
+        case fubon::MarketType::COMMON:
+            return FUBON_MARKET_TYPE_COMMON;
+        case fubon::MarketType::FIXING:
+            return FUBON_MARKET_TYPE_FIXING;
+        case fubon::MarketType::ODD:
+            return FUBON_MARKET_TYPE_ODD;
+        case fubon::MarketType::INTRADAY_ODD:
+            return FUBON_MARKET_TYPE_INTRADAY_ODD;
+        case fubon::MarketType::EMG:
+            return FUBON_MARKET_TYPE_EMG;
+        case fubon::MarketType::EMG_ODD:
+            return FUBON_MARKET_TYPE_EMG_ODD;
+        case fubon::MarketType::UN_SUPPORTED:
+            return FUBON_MARKET_TYPE_UN_SUPPORTED;
+        case fubon::MarketType::UN_DEFINED:
+        default:
+            return FUBON_MARKET_TYPE_UN_DEFINED;
+    }
+}
+
+FubonSymbolQuoteResult* fubon_query_symbol_quote(
+    FubonSDK sdk,
+    const FubonAccount* account,
+    const char* symbol,
+    FubonMarketType market_type
+) {
+    auto* result = new FubonSymbolQuoteResult();
+
+    if (!sdk || !account || !symbol) {
+        result->is_success = false;
+        result->error_message = strdup_from_cpp("Invalid parameters: SDK, account, and symbol are required");
+        result->data = nullptr;
+        return result;
+    }
+
+    try {
+        auto* cpp_sdk = static_cast<fubon::FubonSDK*>(sdk);
+
+        // Convert C account to C++ Account
+        fubon::Account cpp_account;
+        cpp_account.name = account->name ? std::string(account->name) : "";
+        cpp_account.branch_no = std::string(account->branch_no);
+        cpp_account.account = std::string(account->account);
+        cpp_account.account_type = account->account_type ? std::string(account->account_type) : "";
+
+        // Convert market_type to optional
+        std::optional<fubon::MarketType> cpp_market_type;
+        if (market_type != FUBON_MARKET_TYPE_UN_DEFINED) {
+            cpp_market_type = convert_market_type(market_type);
+        }
+
+        // Call C++ SDK query_symbol_quote
+        fubon::SymbolQuoteResponse response = cpp_sdk->stock->query_symbol_quote(
+            cpp_account,
+            std::string(symbol),
+            cpp_market_type
+        );
+
+        result->is_success = response.is_success;
+
+        // Handle error message
+        if (response.message.has_value()) {
+            result->error_message = strdup_from_cpp(response.message.value());
+        } else {
+            result->error_message = nullptr;
+        }
+
+        // Handle quote data
+        if (response.is_success && response.data.has_value()) {
+            auto& quote = response.data.value();
+
+            // Allocate SymbolQuote structure
+            auto* c_quote = new FubonSymbolQuote();
+
+            // Convert required fields
+            c_quote->market = strdup_from_cpp(quote.market);
+            c_quote->symbol = strdup_from_cpp(quote.symbol);
+            c_quote->istib_or_psb = quote.istib_or_psb;
+            c_quote->market_type = convert_to_c_market_type(quote.market_type);
+            c_quote->unit = quote.unit;
+            c_quote->update_time = strdup_from_cpp(quote.update_time);
+
+            // Convert optional fields (use -1 or NAN for None)
+            c_quote->status = quote.status.value_or(-1);
+            c_quote->reference_price = quote.reference_price.value_or(NAN);
+            c_quote->limitup_price = quote.limitup_price.value_or(NAN);
+            c_quote->limitdown_price = quote.limitdown_price.value_or(NAN);
+            c_quote->open_price = quote.open_price.value_or(NAN);
+            c_quote->high_price = quote.high_price.value_or(NAN);
+            c_quote->low_price = quote.low_price.value_or(NAN);
+            c_quote->last_price = quote.last_price.value_or(NAN);
+            c_quote->total_volume = quote.total_volume.value_or(-1);
+            c_quote->total_transaction = quote.total_transaction.value_or(-1);
+            c_quote->total_value = quote.total_value.value_or(-1);
+            c_quote->last_size = quote.last_size.value_or(-1);
+            c_quote->last_transaction = quote.last_transaction.value_or(-1);
+            c_quote->last_value = quote.last_value.value_or(-1);
+            c_quote->bid_price = quote.bid_price.value_or(NAN);
+            c_quote->bid_volume = quote.bid_volume.value_or(-1);
+            c_quote->ask_price = quote.ask_price.value_or(NAN);
+            c_quote->ask_volume = quote.ask_volume.value_or(-1);
+
+            result->data = c_quote;
+        } else {
+            result->data = nullptr;
+        }
+
+    } catch (const std::exception& e) {
+        result->is_success = false;
+        result->error_message = strdup_from_cpp(std::string("Exception: ") + e.what());
+        result->data = nullptr;
+    }
+
+    return result;
+}
+
+void fubon_free_symbol_quote_result(FubonSymbolQuoteResult* result) {
+    if (!result) return;
+
+    // Free error message
+    if (result->error_message) {
+        free(result->error_message);
+    }
+
+    // Free data
+    if (result->data) {
+        if (result->data->market) free(result->data->market);
+        if (result->data->symbol) free(result->data->symbol);
+        if (result->data->update_time) free(result->data->update_time);
+        delete result->data;
+    }
+
+    // Free result structure
+    delete result;
+}

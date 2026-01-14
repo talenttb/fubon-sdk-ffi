@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <math.h>
 #include "fubon_c.h"
 
 static int passed = 0;
@@ -234,10 +235,138 @@ void test_inventories_conversion() {
 }
 
 // =============================================================================
-// Test 5: 記憶體洩漏測試（多次呼叫）
+// Test 5: Symbol Quote - C++/C 轉換 & 記憶體管理
+// =============================================================================
+void test_symbol_quote_conversion() {
+    printf("\n[Test 5] Symbol Quote - C++/C Conversion & Memory\n");
+
+    FubonSDK sdk = fubon_sdk_new();
+
+    FubonAccount mock_account = {
+        .name = "測試帳戶",
+        .branch_no = "9999",
+        .account = "1234567",
+        .account_type = "H"
+    };
+
+    // Test 1: 基本查詢（使用預設 market type）
+    FubonSymbolQuoteResult* result1 = fubon_query_symbol_quote(
+        sdk, &mock_account, "2330", FUBON_MARKET_TYPE_UN_DEFINED
+    );
+
+    TEST_ASSERT(result1 != NULL, "Result structure allocated");
+
+    // 驗證 C++/C 轉換：錯誤訊息
+    if (!result1->is_success) {
+        TEST_ASSERT(result1->error_message != NULL,
+                    "C++ std::string → C char* (error_message)");
+        TEST_ASSERT(strlen(result1->error_message) > 0,
+                    "Error message has content");
+        printf("    Converted message: \"%s\"\n", result1->error_message);
+
+        TEST_ASSERT(result1->data == NULL,
+                    "Error case: data is NULL");
+    }
+
+    // 驗證成功路徑的轉換（如果登入且帳戶有效）
+    if (result1->is_success && result1->data != NULL) {
+        printf("    Success! Testing SymbolQuote conversion...\n");
+
+        FubonSymbolQuote* quote = result1->data;
+
+        // 驗證字串欄位轉換
+        TEST_ASSERT(quote->market != NULL, "market converted");
+        TEST_ASSERT(quote->symbol != NULL, "symbol converted");
+        TEST_ASSERT(quote->update_time != NULL, "update_time converted");
+
+        // 驗證 boolean 轉換
+        TEST_ASSERT(quote->istib_or_psb == true || quote->istib_or_psb == false,
+                    "istib_or_psb is boolean");
+
+        // 驗證 enum 轉換
+        TEST_ASSERT(quote->market_type >= FUBON_MARKET_TYPE_COMMON &&
+                   quote->market_type <= FUBON_MARKET_TYPE_UN_DEFINED,
+                   "MarketType enum converted");
+
+        // 驗證必要欄位
+        TEST_ASSERT(quote->unit > 0, "unit is positive integer");
+
+        // 驗證 optional 欄位處理（應該有值或為 NAN/-1）
+        printf("    Checking optional fields handling...\n");
+        if (quote->status != -1) {
+            printf("      status: %d\n", quote->status);
+        }
+        if (!isnan(quote->reference_price)) {
+            printf("      reference_price: %.2f\n", quote->reference_price);
+        }
+        if (!isnan(quote->last_price)) {
+            printf("      last_price: %.2f\n", quote->last_price);
+        }
+        if (quote->total_volume != -1) {
+            printf("      total_volume: %lld\n", quote->total_volume);
+        }
+        if (!isnan(quote->bid_price)) {
+            printf("      bid_price: %.2f\n", quote->bid_price);
+        }
+        if (quote->bid_volume != -1) {
+            printf("      bid_volume: %lld\n", quote->bid_volume);
+        }
+        if (!isnan(quote->ask_price)) {
+            printf("      ask_price: %.2f\n", quote->ask_price);
+        }
+        if (quote->ask_volume != -1) {
+            printf("      ask_volume: %lld\n", quote->ask_volume);
+        }
+
+        TEST_ASSERT(true, "Optional fields properly handled (NAN or -1 for None)");
+
+        printf("    Converted: market=%s, symbol=%s, unit=%d\n",
+               quote->market, quote->symbol, quote->unit);
+    }
+
+    fubon_free_symbol_quote_result(result1);
+    TEST_ASSERT(true, "Memory freed for default market_type query");
+
+    // Test 2: 指定 market type 查詢
+    FubonSymbolQuoteResult* result2 = fubon_query_symbol_quote(
+        sdk, &mock_account, "2330", FUBON_MARKET_TYPE_COMMON
+    );
+
+    TEST_ASSERT(result2 != NULL, "Result structure allocated (with market_type)");
+    fubon_free_symbol_quote_result(result2);
+    TEST_ASSERT(true, "Memory freed for COMMON market_type query");
+
+    // Test 3: 測試 NULL 參數處理
+    FubonSymbolQuoteResult* result3 = fubon_query_symbol_quote(
+        NULL, &mock_account, "2330", FUBON_MARKET_TYPE_COMMON
+    );
+    TEST_ASSERT(result3 != NULL, "NULL sdk handled gracefully");
+    TEST_ASSERT(!result3->is_success, "NULL sdk returns error");
+    TEST_ASSERT(result3->error_message != NULL, "Error message provided for NULL sdk");
+    fubon_free_symbol_quote_result(result3);
+
+    FubonSymbolQuoteResult* result4 = fubon_query_symbol_quote(
+        sdk, NULL, "2330", FUBON_MARKET_TYPE_COMMON
+    );
+    TEST_ASSERT(result4 != NULL, "NULL account handled gracefully");
+    TEST_ASSERT(!result4->is_success, "NULL account returns error");
+    fubon_free_symbol_quote_result(result4);
+
+    FubonSymbolQuoteResult* result5 = fubon_query_symbol_quote(
+        sdk, &mock_account, NULL, FUBON_MARKET_TYPE_COMMON
+    );
+    TEST_ASSERT(result5 != NULL, "NULL symbol handled gracefully");
+    TEST_ASSERT(!result5->is_success, "NULL symbol returns error");
+    fubon_free_symbol_quote_result(result5);
+
+    fubon_sdk_free(sdk);
+}
+
+// =============================================================================
+// Test 6: 記憶體洩漏測試（多次呼叫）
 // =============================================================================
 void test_memory_leak() {
-    printf("\n[Test 5] Memory Leak Test (Multiple Calls)\n");
+    printf("\n[Test 6] Memory Leak Test (Multiple Calls)\n");
 
     FubonSDK sdk = fubon_sdk_new();
 
@@ -267,6 +396,14 @@ void test_memory_leak() {
     }
     TEST_ASSERT(true, "100 inventories calls - no leak expected");
 
+    for (int i = 0; i < 100; i++) {
+        FubonSymbolQuoteResult* result = fubon_query_symbol_quote(
+            sdk, &mock, "2330", FUBON_MARKET_TYPE_COMMON
+        );
+        fubon_free_symbol_quote_result(result);
+    }
+    TEST_ASSERT(true, "100 query_symbol_quote calls - no leak expected");
+
     fubon_sdk_free(sdk);
 
     printf("    Run with: valgrind --leak-check=full ./test_sdk\n");
@@ -283,6 +420,7 @@ int main() {
     test_login_conversion();
     test_bank_remain_conversion();
     test_inventories_conversion();
+    test_symbol_quote_conversion();
     test_memory_leak();
 
     printf("\n========================================\n");

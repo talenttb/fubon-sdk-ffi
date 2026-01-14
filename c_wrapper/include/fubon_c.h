@@ -221,6 +221,88 @@ FubonInventoryResult* fubon_inventories(FubonSDK sdk, const FubonAccount* accoun
  */
 void fubon_free_inventory_result(FubonInventoryResult* result);
 
+// ============================================================================
+// Symbol Quote Structures (Task 4 - query_symbol_quote)
+// ============================================================================
+
+/**
+ * Market type enumeration
+ */
+typedef enum {
+    FUBON_MARKET_TYPE_COMMON = 1,
+    FUBON_MARKET_TYPE_FIXING = 2,
+    FUBON_MARKET_TYPE_ODD = 3,
+    FUBON_MARKET_TYPE_INTRADAY_ODD = 4,
+    FUBON_MARKET_TYPE_EMG = 5,
+    FUBON_MARKET_TYPE_EMG_ODD = 6,
+    FUBON_MARKET_TYPE_UN_SUPPORTED = 7,
+    FUBON_MARKET_TYPE_UN_DEFINED = 8
+} FubonMarketType;
+
+/**
+ * Symbol quote information
+ * Note: optional fields use special values to indicate None:
+ * - optional<double>: NAN indicates None
+ * - optional<int64_t>: -1 indicates None
+ * - optional<int32_t>: -1 indicates None
+ */
+typedef struct {
+    char* market;
+    char* symbol;
+    bool istib_or_psb;
+    FubonMarketType market_type;
+    int32_t status;                    // -1 = None
+    double reference_price;            // NAN = None
+    int32_t unit;
+    char* update_time;
+    double limitup_price;              // NAN = None
+    double limitdown_price;            // NAN = None
+    double open_price;                 // NAN = None
+    double high_price;                 // NAN = None
+    double low_price;                  // NAN = None
+    double last_price;                 // NAN = None
+    int64_t total_volume;              // -1 = None
+    int64_t total_transaction;         // -1 = None
+    int64_t total_value;               // -1 = None
+    int64_t last_size;                 // -1 = None
+    int64_t last_transaction;          // -1 = None
+    int64_t last_value;                // -1 = None
+    double bid_price;                  // NAN = None
+    int64_t bid_volume;                // -1 = None
+    double ask_price;                  // NAN = None
+    int64_t ask_volume;                // -1 = None
+} FubonSymbolQuote;
+
+/**
+ * Symbol quote query result
+ */
+typedef struct {
+    bool is_success;
+    char* error_message;
+    FubonSymbolQuote* data;            // NULL if no data
+} FubonSymbolQuoteResult;
+
+/**
+ * Query symbol quote (individual stock price)
+ * @param sdk SDK handle
+ * @param account Account to query
+ * @param symbol Stock symbol (e.g., "2330")
+ * @param market_type Market type (pass FUBON_MARKET_TYPE_UN_DEFINED for None/default)
+ * @return Symbol quote result, must be freed with fubon_free_symbol_quote_result()
+ */
+FubonSymbolQuoteResult* fubon_query_symbol_quote(
+    FubonSDK sdk,
+    const FubonAccount* account,
+    const char* symbol,
+    FubonMarketType market_type
+);
+
+/**
+ * Free symbol quote result and all associated memory
+ * @param result Symbol quote result to free
+ */
+void fubon_free_symbol_quote_result(FubonSymbolQuoteResult* result);
+
 #ifdef __cplusplus
 }
 #endif
