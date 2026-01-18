@@ -571,3 +571,148 @@ void fubon_free_symbol_quote_result(FubonSymbolQuoteResult* result) {
     // Free result structure
     delete result;
 }
+
+// ============================================================================
+// Symbol Snapshot Implementation (query_symbol_snapshot)
+// ============================================================================
+
+static fubon::StockType convert_stock_type(FubonStockType st) {
+    switch (st) {
+        case FUBON_STOCK_TYPE_STOCK:
+            return fubon::StockType::STOCK;
+        case FUBON_STOCK_TYPE_COVERT_BOND:
+            return fubon::StockType::COVERT_BOND;
+        case FUBON_STOCK_TYPE_ETF_AND_ETN:
+            return fubon::StockType::ETF_AND_ETN;
+        default:
+            return fubon::StockType::STOCK;
+    }
+}
+
+static void fill_symbol_quote(FubonSymbolQuote* c_quote, const fubon::SymbolQuote& quote) {
+    c_quote->market = strdup_from_cpp(quote.market);
+    c_quote->symbol = strdup_from_cpp(quote.symbol);
+    c_quote->istib_or_psb = quote.istib_or_psb;
+    c_quote->market_type = convert_to_c_market_type(quote.market_type);
+    c_quote->unit = quote.unit;
+    c_quote->update_time = strdup_from_cpp(quote.update_time);
+
+    c_quote->status = quote.status.value_or(-1);
+    c_quote->reference_price = quote.reference_price.value_or(NAN);
+    c_quote->limitup_price = quote.limitup_price.value_or(NAN);
+    c_quote->limitdown_price = quote.limitdown_price.value_or(NAN);
+    c_quote->open_price = quote.open_price.value_or(NAN);
+    c_quote->high_price = quote.high_price.value_or(NAN);
+    c_quote->low_price = quote.low_price.value_or(NAN);
+    c_quote->last_price = quote.last_price.value_or(NAN);
+    c_quote->total_volume = quote.total_volume.value_or(-1);
+    c_quote->total_transaction = quote.total_transaction.value_or(-1);
+    c_quote->total_value = quote.total_value.value_or(-1);
+    c_quote->last_size = quote.last_size.value_or(-1);
+    c_quote->last_transaction = quote.last_transaction.value_or(-1);
+    c_quote->last_value = quote.last_value.value_or(-1);
+    c_quote->bid_price = quote.bid_price.value_or(NAN);
+    c_quote->bid_volume = quote.bid_volume.value_or(-1);
+    c_quote->ask_price = quote.ask_price.value_or(NAN);
+    c_quote->ask_volume = quote.ask_volume.value_or(-1);
+}
+
+FubonSymbolSnapshotResult* fubon_query_symbol_snapshot(
+    FubonSDK sdk,
+    const FubonAccount* account,
+    FubonMarketType market_type,
+    const FubonStockType* stock_types,
+    int32_t stock_types_count
+) {
+    auto* result = new FubonSymbolSnapshotResult();
+
+    if (!sdk || !account) {
+        result->is_success = false;
+        result->error_message = strdup_from_cpp("Invalid parameters: SDK and account are required");
+        result->data = nullptr;
+        return result;
+    }
+
+    try {
+        auto* cpp_sdk = static_cast<fubon::FubonSDK*>(sdk);
+
+        fubon::Account cpp_account;
+        cpp_account.name = account->name ? std::string(account->name) : "";
+        cpp_account.branch_no = std::string(account->branch_no);
+        cpp_account.account = std::string(account->account);
+        cpp_account.account_type = account->account_type ? std::string(account->account_type) : "";
+
+        std::optional<fubon::MarketType> cpp_market_type;
+        if (market_type != FUBON_MARKET_TYPE_UN_DEFINED) {
+            cpp_market_type = convert_market_type(market_type);
+        }
+
+        std::optional<std::vector<fubon::StockType>> cpp_stock_types;
+        if (stock_types && stock_types_count > 0) {
+            std::vector<fubon::StockType> types;
+            for (int32_t i = 0; i < stock_types_count; i++) {
+                types.push_back(convert_stock_type(stock_types[i]));
+            }
+            cpp_stock_types = types;
+        }
+
+        fubon::VecSymbolQuoteResponse response = cpp_sdk->stock->query_symbol_snapshot(
+            cpp_account,
+            cpp_market_type,
+            cpp_stock_types
+        );
+
+        result->is_success = response.is_success;
+
+        if (response.message.has_value()) {
+            result->error_message = strdup_from_cpp(response.message.value());
+        } else {
+            result->error_message = nullptr;
+        }
+
+        if (response.is_success && response.data.has_value()) {
+            auto& quotes_vec = response.data.value();
+
+            auto* quote_array = new FubonSymbolQuoteArray();
+            quote_array->count = static_cast<int32_t>(quotes_vec.size());
+            quote_array->items = (FubonSymbolQuote*)malloc(sizeof(FubonSymbolQuote) * quotes_vec.size());
+
+            for (size_t i = 0; i < quotes_vec.size(); i++) {
+                fill_symbol_quote(&quote_array->items[i], quotes_vec[i]);
+            }
+
+            result->data = quote_array;
+        } else {
+            result->data = nullptr;
+        }
+
+    } catch (const std::exception& e) {
+        result->is_success = false;
+        result->error_message = strdup_from_cpp(std::string("Exception: ") + e.what());
+        result->data = nullptr;
+    }
+
+    return result;
+}
+
+void fubon_free_symbol_snapshot_result(FubonSymbolSnapshotResult* result) {
+    if (!result) return;
+
+    if (result->error_message) {
+        free(result->error_message);
+    }
+
+    if (result->data) {
+        if (result->data->items) {
+            for (int32_t i = 0; i < result->data->count; i++) {
+                if (result->data->items[i].market) free(result->data->items[i].market);
+                if (result->data->items[i].symbol) free(result->data->items[i].symbol);
+                if (result->data->items[i].update_time) free(result->data->items[i].update_time);
+            }
+            free(result->data->items);
+        }
+        delete result->data;
+    }
+
+    delete result;
+}

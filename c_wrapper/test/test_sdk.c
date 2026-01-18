@@ -363,10 +363,102 @@ void test_symbol_quote_conversion() {
 }
 
 // =============================================================================
-// Test 6: 記憶體洩漏測試（多次呼叫）
+// Test 6: Symbol Snapshot - C++/C 轉換 & 記憶體管理
+// =============================================================================
+void test_symbol_snapshot_conversion() {
+    printf("\n[Test 6] Symbol Snapshot - C++/C Conversion & Memory\n");
+
+    FubonSDK sdk = fubon_sdk_new();
+
+    FubonAccount mock_account = {
+        .name = "測試帳戶",
+        .branch_no = "9999",
+        .account = "1234567",
+        .account_type = "H"
+    };
+
+    // Test 1: 基本查詢（無過濾條件）
+    FubonSymbolSnapshotResult* result1 = fubon_query_symbol_snapshot(
+        sdk, &mock_account, FUBON_MARKET_TYPE_UN_DEFINED, NULL, 0
+    );
+
+    TEST_ASSERT(result1 != NULL, "Result structure allocated");
+
+    if (!result1->is_success) {
+        TEST_ASSERT(result1->error_message != NULL,
+                    "C++ std::string → C char* (error_message)");
+        TEST_ASSERT(strlen(result1->error_message) > 0,
+                    "Error message has content");
+        printf("    Converted message: \"%s\"\n", result1->error_message);
+
+        TEST_ASSERT(result1->data == NULL,
+                    "Error case: data is NULL");
+    }
+
+    if (result1->is_success && result1->data != NULL) {
+        printf("    Success! Testing SymbolQuote array conversion...\n");
+
+        FubonSymbolQuoteArray* arr = result1->data;
+
+        TEST_ASSERT(arr->count >= 0, "Array count is valid");
+        if (arr->count > 0) {
+            TEST_ASSERT(arr->items != NULL, "Array items allocated");
+
+            for (int i = 0; i < arr->count && i < 3; i++) {
+                FubonSymbolQuote* quote = &arr->items[i];
+
+                TEST_ASSERT(quote->market != NULL, "market converted");
+                TEST_ASSERT(quote->symbol != NULL, "symbol converted");
+                TEST_ASSERT(quote->update_time != NULL, "update_time converted");
+
+                TEST_ASSERT(quote->market_type >= FUBON_MARKET_TYPE_COMMON &&
+                           quote->market_type <= FUBON_MARKET_TYPE_UN_DEFINED,
+                           "MarketType enum converted");
+
+                printf("    Quote[%d]: symbol=%s, last_price=%.2f\n",
+                       i, quote->symbol,
+                       isnan(quote->last_price) ? 0.0 : quote->last_price);
+            }
+        }
+    }
+
+    fubon_free_symbol_snapshot_result(result1);
+    TEST_ASSERT(true, "Memory freed for basic query");
+
+    // Test 2: 指定 market type 和 stock types
+    FubonStockType stock_types[] = {FUBON_STOCK_TYPE_STOCK, FUBON_STOCK_TYPE_ETF_AND_ETN};
+    FubonSymbolSnapshotResult* result2 = fubon_query_symbol_snapshot(
+        sdk, &mock_account, FUBON_MARKET_TYPE_COMMON, stock_types, 2
+    );
+
+    TEST_ASSERT(result2 != NULL, "Result structure allocated (with filters)");
+    fubon_free_symbol_snapshot_result(result2);
+    TEST_ASSERT(true, "Memory freed for filtered query");
+
+    // Test 3: NULL 參數處理
+    FubonSymbolSnapshotResult* result3 = fubon_query_symbol_snapshot(
+        NULL, &mock_account, FUBON_MARKET_TYPE_COMMON, NULL, 0
+    );
+    TEST_ASSERT(result3 != NULL, "NULL sdk handled gracefully");
+    TEST_ASSERT(!result3->is_success, "NULL sdk returns error");
+    TEST_ASSERT(result3->error_message != NULL, "Error message provided for NULL sdk");
+    fubon_free_symbol_snapshot_result(result3);
+
+    FubonSymbolSnapshotResult* result4 = fubon_query_symbol_snapshot(
+        sdk, NULL, FUBON_MARKET_TYPE_COMMON, NULL, 0
+    );
+    TEST_ASSERT(result4 != NULL, "NULL account handled gracefully");
+    TEST_ASSERT(!result4->is_success, "NULL account returns error");
+    fubon_free_symbol_snapshot_result(result4);
+
+    fubon_sdk_free(sdk);
+}
+
+// =============================================================================
+// Test 7: 記憶體洩漏測試（多次呼叫）
 // =============================================================================
 void test_memory_leak() {
-    printf("\n[Test 6] Memory Leak Test (Multiple Calls)\n");
+    printf("\n[Test 7] Memory Leak Test (Multiple Calls)\n");
 
     FubonSDK sdk = fubon_sdk_new();
 
@@ -404,6 +496,14 @@ void test_memory_leak() {
     }
     TEST_ASSERT(true, "100 query_symbol_quote calls - no leak expected");
 
+    for (int i = 0; i < 100; i++) {
+        FubonSymbolSnapshotResult* result = fubon_query_symbol_snapshot(
+            sdk, &mock, FUBON_MARKET_TYPE_COMMON, NULL, 0
+        );
+        fubon_free_symbol_snapshot_result(result);
+    }
+    TEST_ASSERT(true, "100 query_symbol_snapshot calls - no leak expected");
+
     fubon_sdk_free(sdk);
 
     printf("    Run with: valgrind --leak-check=full ./test_sdk\n");
@@ -421,6 +521,7 @@ int main() {
     test_bank_remain_conversion();
     test_inventories_conversion();
     test_symbol_quote_conversion();
+    test_symbol_snapshot_conversion();
     test_memory_leak();
 
     printf("\n========================================\n");

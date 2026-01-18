@@ -303,6 +303,59 @@ FubonSymbolQuoteResult* fubon_query_symbol_quote(
  */
 void fubon_free_symbol_quote_result(FubonSymbolQuoteResult* result);
 
+// ============================================================================
+// Symbol Snapshot Structures (query_symbol_snapshot)
+// ============================================================================
+
+/**
+ * Stock type enumeration
+ */
+typedef enum {
+    FUBON_STOCK_TYPE_STOCK = 1,
+    FUBON_STOCK_TYPE_COVERT_BOND = 2,
+    FUBON_STOCK_TYPE_ETF_AND_ETN = 3
+} FubonStockType;
+
+/**
+ * Array of symbol quotes
+ */
+typedef struct {
+    FubonSymbolQuote* items;
+    int32_t count;
+} FubonSymbolQuoteArray;
+
+/**
+ * Symbol snapshot query result
+ */
+typedef struct {
+    bool is_success;
+    char* error_message;
+    FubonSymbolQuoteArray* data;
+} FubonSymbolSnapshotResult;
+
+/**
+ * Query symbol snapshot (market overview with multiple stocks)
+ * @param sdk SDK handle
+ * @param account Account to query
+ * @param market_type Market type (pass FUBON_MARKET_TYPE_UN_DEFINED for None/default)
+ * @param stock_types Array of stock types to filter (NULL for all)
+ * @param stock_types_count Number of stock types in array (0 if NULL)
+ * @return Symbol snapshot result, must be freed with fubon_free_symbol_snapshot_result()
+ */
+FubonSymbolSnapshotResult* fubon_query_symbol_snapshot(
+    FubonSDK sdk,
+    const FubonAccount* account,
+    FubonMarketType market_type,
+    const FubonStockType* stock_types,
+    int32_t stock_types_count
+);
+
+/**
+ * Free symbol snapshot result and all associated memory
+ * @param result Symbol snapshot result to free
+ */
+void fubon_free_symbol_snapshot_result(FubonSymbolSnapshotResult* result);
+
 #ifdef __cplusplus
 }
 #endif
