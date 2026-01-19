@@ -716,3 +716,62 @@ void fubon_free_symbol_snapshot_result(FubonSymbolSnapshotResult* result) {
 
     delete result;
 }
+
+// ============================================================================
+// Realtime Token & REST URL Implementation
+// ============================================================================
+
+FubonRealtimeTokenResult* fubon_exchange_realtime_token(FubonSDK sdk) {
+    auto* result = new FubonRealtimeTokenResult();
+
+    if (!sdk) {
+        result->is_success = false;
+        result->error_message = strdup_from_cpp("Invalid parameters: SDK is required");
+        result->token = nullptr;
+        return result;
+    }
+
+    try {
+        auto* cpp_sdk = static_cast<fubon::FubonSDK*>(sdk);
+        std::string token = cpp_sdk->exchange_realtime_token();
+        result->is_success = true;
+        result->token = strdup_from_cpp(token);
+        result->error_message = nullptr;
+    } catch (const std::exception& e) {
+        result->is_success = false;
+        result->token = nullptr;
+        result->error_message = strdup_from_cpp(std::string("Exception: ") + e.what());
+    }
+
+    return result;
+}
+
+void fubon_free_realtime_token_result(FubonRealtimeTokenResult* result) {
+    if (!result) return;
+
+    if (result->error_message) {
+        free(result->error_message);
+    }
+
+    if (result->token) {
+        free(result->token);
+    }
+
+    delete result;
+}
+
+char* fubon_realtime_rest_url(void) {
+    try {
+        auto realtime = fubon::FugleRealtime::init();
+        std::string url = realtime->realtime_rest_url();
+        return strdup_from_cpp(url);
+    } catch (const std::exception& e) {
+        return nullptr;
+    }
+}
+
+void fubon_free_string(char* str) {
+    if (str) {
+        free(str);
+    }
+}

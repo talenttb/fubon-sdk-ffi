@@ -356,6 +356,22 @@ FubonSymbolSnapshotResult* fubon_query_symbol_snapshot(
  */
 void fubon_free_symbol_snapshot_result(FubonSymbolSnapshotResult* result);
 
+// ============================================================================
+// Realtime Token & REST URL Functions
+// ============================================================================
+
+typedef struct {
+    bool is_success;
+    char* error_message;
+    char* token;
+} FubonRealtimeTokenResult;
+
+FubonRealtimeTokenResult* fubon_exchange_realtime_token(FubonSDK sdk);
+void fubon_free_realtime_token_result(FubonRealtimeTokenResult* result);
+
+char* fubon_realtime_rest_url(void);
+void fubon_free_string(char* str);
+
 #ifdef __cplusplus
 }
 #endif

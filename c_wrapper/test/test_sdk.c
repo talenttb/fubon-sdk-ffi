@@ -455,10 +455,72 @@ void test_symbol_snapshot_conversion() {
 }
 
 // =============================================================================
-// Test 7: 記憶體洩漏測試（多次呼叫）
+// Test 7: Realtime REST URL - C++/C 轉換 & 記憶體管理
+// =============================================================================
+void test_realtime_rest_url() {
+    printf("\n[Test 7] Realtime REST URL - C++/C Conversion & Memory\n");
+
+    char* url = fubon_realtime_rest_url();
+
+    TEST_ASSERT(url != NULL, "URL should not be NULL");
+    TEST_ASSERT(strlen(url) > 0, "URL should not be empty");
+
+    printf("    REST URL: %s\n", url);
+
+    fubon_free_string(url);
+    TEST_ASSERT(true, "Memory freed for URL");
+
+    fubon_free_string(NULL);
+    TEST_ASSERT(true, "NULL pointer handled gracefully");
+}
+
+// =============================================================================
+// Test 8: Realtime Token - C++/C 轉換 & 記憶體管理
+// =============================================================================
+void test_realtime_token_conversion() {
+    printf("\n[Test 8] Realtime Token - C++/C Conversion & Memory\n");
+
+    FubonSDK sdk = fubon_sdk_new();
+
+    FubonRealtimeTokenResult* result = fubon_exchange_realtime_token(sdk);
+
+    TEST_ASSERT(result != NULL, "Result structure allocated");
+
+    if (!result->is_success) {
+        TEST_ASSERT(result->error_message != NULL,
+                    "C++ std::string → C char* (error_message)");
+        TEST_ASSERT(strlen(result->error_message) > 0,
+                    "Error message has content");
+        printf("    Converted message: \"%s\"\n", result->error_message);
+
+        TEST_ASSERT(result->token == NULL,
+                    "Error case: token is NULL");
+    }
+
+    if (result->is_success && result->token != NULL) {
+        printf("    Success! Token: %s...\n",
+               strlen(result->token) > 20 ? "(truncated)" : result->token);
+        TEST_ASSERT(strlen(result->token) > 0, "Token has content");
+    }
+
+    fubon_free_realtime_token_result(result);
+    TEST_ASSERT(true, "Memory freed for token result");
+
+    FubonRealtimeTokenResult* result2 = fubon_exchange_realtime_token(NULL);
+    TEST_ASSERT(result2 != NULL, "NULL sdk handled gracefully");
+    TEST_ASSERT(!result2->is_success, "NULL sdk returns error");
+    TEST_ASSERT(result2->error_message != NULL, "Error message provided for NULL sdk");
+    fubon_free_realtime_token_result(result2);
+    TEST_ASSERT(true, "Memory freed for NULL sdk case");
+
+    fubon_sdk_free(sdk);
+}
+
+// =============================================================================
+// Test 9: 記憶體洩漏測試（多次呼叫）
 // =============================================================================
 void test_memory_leak() {
-    printf("\n[Test 7] Memory Leak Test (Multiple Calls)\n");
+    printf("\n[Test 9] Memory Leak Test (Multiple Calls)\n");
 
     FubonSDK sdk = fubon_sdk_new();
 
@@ -504,6 +566,18 @@ void test_memory_leak() {
     }
     TEST_ASSERT(true, "100 query_symbol_snapshot calls - no leak expected");
 
+    for (int i = 0; i < 100; i++) {
+        FubonRealtimeTokenResult* result = fubon_exchange_realtime_token(sdk);
+        fubon_free_realtime_token_result(result);
+    }
+    TEST_ASSERT(true, "100 exchange_realtime_token calls - no leak expected");
+
+    for (int i = 0; i < 100; i++) {
+        char* url = fubon_realtime_rest_url();
+        fubon_free_string(url);
+    }
+    TEST_ASSERT(true, "100 realtime_rest_url calls - no leak expected");
+
     fubon_sdk_free(sdk);
 
     printf("    Run with: valgrind --leak-check=full ./test_sdk\n");
@@ -522,6 +596,8 @@ int main() {
     test_inventories_conversion();
     test_symbol_quote_conversion();
     test_symbol_snapshot_conversion();
+    test_realtime_rest_url();
+    test_realtime_token_conversion();
     test_memory_leak();
 
     printf("\n========================================\n");

@@ -49,7 +49,9 @@ namespace fubon
             return _core->inner_register_callback(callback);
         }
 
-
+        std::string exchange_realtime_token() {
+            return _core->exchange_realtime_token();
+        }
 
     };
 } // namespace FubonNeo
